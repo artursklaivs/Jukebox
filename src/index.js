@@ -2,7 +2,7 @@ const { loadEnv } = require('./env');
 
 loadEnv();
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { ensureInstalledPackages, requireInstalledPackage } = require('./dependencies');
 const { Player } = require('./player');
 const { loadPlaylist, ShuffledPlaylist } = require('./playlist');
 const { RequestQueue } = require('./requestQueue');
@@ -23,6 +23,9 @@ function ensureConfig() {
 }
 
 function createWhatsAppClient() {
+  const { Client, LocalAuth } = requireInstalledPackage('whatsapp-web.js');
+  const qrcode = requireInstalledPackage('qrcode-terminal');
+
   const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: {
@@ -31,8 +34,9 @@ function createWhatsAppClient() {
     },
   });
 
-  client.on('qr', () => {
-    console.log('WhatsApp QR code is ready. Scan it in the opened WhatsApp Web browser window.');
+  client.on('qr', (qr) => {
+    qrcode.generate(qr, { small: true });
+    console.log('WhatsApp QR code is ready. Scan it in the opened WhatsApp Web browser window or from the terminal.');
   });
 
   client.on('authenticated', () => {
@@ -60,6 +64,7 @@ function createTrackFromRequest(url, contactName) {
 
 async function start() {
   ensureConfig();
+  ensureInstalledPackages(['whatsapp-web.js', 'qrcode-terminal']);
 
   console.log('Loading YouTube playlist...');
   const playlistItems = await loadPlaylist(config.playlistUrl, config.ytdlpCommand);
@@ -110,6 +115,11 @@ async function start() {
 }
 
 start().catch((error) => {
-  console.error(error);
+  if (error.code === 'MISSING_NPM_PACKAGE') {
+    console.error(error.message);
+  } else {
+    console.error(error);
+  }
+
   process.exitCode = 1;
 });
